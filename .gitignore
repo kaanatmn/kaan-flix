@@ -1,0 +1,25 @@
+﻿# --- General ---
+.DS_Store
+*.log
+.vscode/
+
+# --- Java / Spring Boot (backend) ---
+.gradle/
+build/
+target/
+*.jar
+*.class
+.project
+.settings/
+
+# --- Node / React (frontend) ---
+node_modules/
+dist/
+build/
+.npm/
+
+# --- Environment Files (CRITICAL) ---
+.env
+*.env
+application.properties
+application.yml
