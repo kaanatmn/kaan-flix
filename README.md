@@ -1,6 +1,6 @@
 # 🎬 KaanFlix - Movie Database & List Management Platform
 
-A full-stack movie browsing and list management application built with **Spring Boot**, **React**, and **PostgreSQL**. KaanFlix allows users to discover movies, create personalized watchlists, and share their favorite film collections with the community. (Implemented different features inspired from Netflix, IMDB, Reddit, Spotify.)
+A full-stack movie browsing and list management application built with **Spring Boot**, **React**, and **PostgreSQL**. KaanFlix allows users to discover movies, create personalized watchlists, and share their favorite film collections with the community. (Implemented different features inspired by Netflix, IMDB, Reddit, Spotify.)
 
 ---
 
