@@ -1,7 +1,6 @@
 package com.kaanflix.backend.controller;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,7 +11,6 @@ import com.kaanflix.backend.service.TmdbService;
 
 @RestController
 @RequestMapping("/api/movies")
-@CrossOrigin(origins = "http://localhost:5173")
 public class MovieController {
 
     private final TmdbService tmdbService;
@@ -36,5 +34,3 @@ public class MovieController {
         return ResponseEntity.ok(tmdbService.getMovieDetails(id));
     }
 }
-
-

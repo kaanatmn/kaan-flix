@@ -1,16 +1,20 @@
 package com.kaanflix.backend.service;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import com.kaanflix.backend.dto.response.MovieListDetailResponse;
+import com.kaanflix.backend.dto.response.MovieListResponse;
 import com.kaanflix.backend.entity.ListLike;
 import com.kaanflix.backend.entity.MovieList;
 import com.kaanflix.backend.entity.MovieListItem;
 import com.kaanflix.backend.entity.User;
+import com.kaanflix.backend.exception.BadRequestException;
+import com.kaanflix.backend.exception.DuplicateResourceException;
+import com.kaanflix.backend.exception.ResourceNotFoundException;
+import com.kaanflix.backend.exception.UnauthorizedException;
 import com.kaanflix.backend.repository.ListLikeRepository;
 import com.kaanflix.backend.repository.MovieListItemRepository;
 import com.kaanflix.backend.repository.MovieListRepository;
@@ -25,20 +29,19 @@ public class MovieListService {
     private final UserRepository userRepository;
 
     public MovieListService(
-        MovieListRepository movieListRepository,
-        MovieListItemRepository movieListItemRepository,
-        ListLikeRepository listLikeRepository,
-        UserRepository userRepository
-    ) {
+            MovieListRepository movieListRepository,
+            MovieListItemRepository movieListItemRepository,
+            ListLikeRepository listLikeRepository,
+            UserRepository userRepository) {
         this.movieListRepository = movieListRepository;
         this.movieListItemRepository = movieListItemRepository;
         this.listLikeRepository = listLikeRepository;
         this.userRepository = userRepository;
     }
 
-    public MovieList createList(Long userId, String name, String description, Boolean isPublic) {
-        User user = userRepository.findById(userId)
-            .orElseThrow(() -> new RuntimeException("User not found!"));
+    @Transactional
+    public MovieListResponse createList(Long userId, String name, String description, Boolean isPublic) {
+        User user = findUserById(userId);
 
         MovieList list = new MovieList();
         list.setName(name);
@@ -46,48 +49,47 @@ public class MovieListService {
         list.setIsPublic(isPublic != null ? isPublic : false);
         list.setUser(user);
 
-        return movieListRepository.save(list);
+        MovieList saved = movieListRepository.save(list);
+        return MovieListResponse.from(saved);
     }
 
-    public List<Map<String, Object>> getUserLists(Long userId) {
-        List<MovieList> lists = movieListRepository.findByUserId(userId);
-        return lists.stream().map(this::convertToMap).collect(Collectors.toList());
+    @Transactional(readOnly = true)
+    public List<MovieListResponse> getUserLists(Long userId) {
+        return movieListRepository.findByUserId(userId).stream()
+                .map(MovieListResponse::from)
+                .toList();
     }
 
-    public List<Map<String, Object>> getPublicLists(Long currentUserId) {
-        List<MovieList> lists = movieListRepository.findByIsPublicTrue();
-        return lists.stream()
-            .map(list -> {
-                Map<String, Object> listMap = convertToMap(list);
-                listMap.put("isLiked", listLikeRepository.existsByUserIdAndMovieListId(currentUserId, list.getId()));
-                listMap.put("likeCount", listLikeRepository.countByMovieListId(list.getId()));
-                return listMap;
-            })
-            .collect(Collectors.toList());
+    @Transactional(readOnly = true)
+    public List<MovieListResponse> getPublicLists(Long currentUserId) {
+        return movieListRepository.findByIsPublicTrue().stream()
+                .map(list -> {
+                    boolean isLiked = listLikeRepository.existsByUserIdAndMovieListId(currentUserId, list.getId());
+                    long likeCount = listLikeRepository.countByMovieListId(list.getId());
+                    return MovieListResponse.from(list, isLiked, likeCount);
+                })
+                .toList();
     }
 
-    public List<Map<String, Object>> getLikedLists(Long userId) {
-        List<ListLike> likes = listLikeRepository.findByUserId(userId);
-        return likes.stream()
-            .map(like -> convertToMap(like.getMovieList()))
-            .collect(Collectors.toList());
+    @Transactional(readOnly = true)
+    public List<MovieListResponse> getLikedLists(Long userId) {
+        return listLikeRepository.findByUserId(userId).stream()
+                .map(like -> MovieListResponse.from(like.getMovieList()))
+                .toList();
     }
 
-    public Map<String, Object> getListById(Long listId) {
-        MovieList list = movieListRepository.findById(listId)
-            .orElseThrow(() -> new RuntimeException("List not found!"));
-        
-        Map<String, Object> listMap = convertToMap(list);
-        listMap.put("movies", list.getItems());
-        return listMap;
+    @Transactional(readOnly = true)
+    public MovieListDetailResponse getListById(Long listId) {
+        MovieList list = findListById(listId);
+        return MovieListDetailResponse.from(list);
     }
 
+    @Transactional
     public MovieListItem addMovieToList(Long listId, Long tmdbMovieId, String movieTitle, String posterPath) {
-        MovieList list = movieListRepository.findById(listId)
-            .orElseThrow(() -> new RuntimeException("List not found!"));
+        MovieList list = findListById(listId);
 
         if (movieListItemRepository.existsByMovieListIdAndTmdbMovieId(listId, tmdbMovieId)) {
-            throw new RuntimeException("Movie already in this list!");
+            throw new DuplicateResourceException("Movie is already in this list");
         }
 
         MovieListItem item = new MovieListItem();
@@ -99,34 +101,33 @@ public class MovieListService {
         return movieListItemRepository.save(item);
     }
 
+    @Transactional
     public void removeMovieFromList(Long itemId, Long userId) {
         MovieListItem item = movieListItemRepository.findById(itemId)
-            .orElseThrow(() -> new RuntimeException("Item not found!"));
+                .orElseThrow(() -> new ResourceNotFoundException("Movie list item", "id", itemId));
 
         if (!item.getMovieList().getUser().getId().equals(userId)) {
-            throw new RuntimeException("Unauthorized!");
+            throw new UnauthorizedException("You can only remove movies from your own lists");
         }
 
         movieListItemRepository.delete(item);
     }
 
+    @Transactional
     public void likeList(Long userId, Long listId) {
-        User user = userRepository.findById(userId)
-            .orElseThrow(() -> new RuntimeException("User not found!"));
-        
-        MovieList list = movieListRepository.findById(listId)
-            .orElseThrow(() -> new RuntimeException("List not found!"));
+        User user = findUserById(userId);
+        MovieList list = findListById(listId);
 
         if (list.getUser().getId().equals(userId)) {
-            throw new RuntimeException("You can't like your own list!");
+            throw new BadRequestException("You cannot like your own list");
         }
 
         if (!list.getIsPublic()) {
-            throw new RuntimeException("Can only like public lists!");
+            throw new BadRequestException("You can only like public lists");
         }
 
         if (listLikeRepository.existsByUserIdAndMovieListId(userId, listId)) {
-            throw new RuntimeException("Already liked this list!");
+            throw new DuplicateResourceException("You have already liked this list");
         }
 
         ListLike like = new ListLike();
@@ -135,34 +136,32 @@ public class MovieListService {
         listLikeRepository.save(like);
     }
 
+    @Transactional
     public void unlikeList(Long userId, Long listId) {
         ListLike like = listLikeRepository.findByUserIdAndMovieListId(userId, listId)
-            .orElseThrow(() -> new RuntimeException("Like not found!"));
-        
+                .orElseThrow(() -> new ResourceNotFoundException("Like not found"));
+
         listLikeRepository.delete(like);
     }
 
+    @Transactional
     public void deleteList(Long listId, Long userId) {
-        MovieList list = movieListRepository.findById(listId)
-            .orElseThrow(() -> new RuntimeException("List not found!"));
+        MovieList list = findListById(listId);
 
         if (!list.getUser().getId().equals(userId)) {
-            throw new RuntimeException("Unauthorized!");
+            throw new UnauthorizedException("You can only delete your own lists");
         }
 
         movieListRepository.delete(list);
     }
 
-    private Map<String, Object> convertToMap(MovieList list) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", list.getId());
-        map.put("name", list.getName());
-        map.put("description", list.getDescription());
-        map.put("isPublic", list.getIsPublic());
-        map.put("createdAt", list.getCreatedAt());
-        map.put("username", list.getUser().getUsername());
-        map.put("userId", list.getUser().getId());
-        map.put("movieCount", list.getItems().size());
-        return map;
+    private User findUserById(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+    }
+
+    private MovieList findListById(Long listId) {
+        return movieListRepository.findById(listId)
+                .orElseThrow(() -> new ResourceNotFoundException("Movie list", "id", listId));
     }
 }

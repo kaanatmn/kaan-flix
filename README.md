@@ -1,99 +1,232 @@
-# 🎬 KaanFlix - Movie Database & List Management Platform
+# 🎬 KaanFlix
 
-A full-stack movie browsing and list management application built with **Spring Boot**, **React**, and **PostgreSQL**. KaanFlix allows users to discover movies, create personalized watchlists, and share their favorite film collections with the community. (Implemented different features inspired by Netflix, IMDB, Reddit, Spotify.)
+A full-stack movie database and social watchlist platform built with **Spring Boot** and **React**. Users can browse movies via the TMDB API, build curated watchlists, and share their collections with the community through a like-based social system.
 
----
-
-## Features:
-
-### 🔐 **User Authentication & Profile Management**
-- Secure user registration and login with BCrypt password encryption
-- Profile customization with username and email updates
-- Password change with current password verification
-- Auto-generated profile avatars based on username
-
-### 🎥 **Movie Discovery**
-- Browse popular movies powered by **TMDB API**
-- Search functionality with real-time results
-- Detailed movie information including:
-  - Plot synopsis and taglines
-  - Cast with actor/actress photos
-  - Director and crew information
-  - Genres and ratings
-  - Runtime and release dates
-  - Embedded YouTube trailers
-
-### 📋 **Movie List Management**
-- Create unlimited public or private movie lists
-- Add movies to multiple lists
-- Remove movies from lists
-- Delete entire lists
-- View movie count per list
-
-### 🌐 **Social Features**
-- Browse public lists from all users
-- Like public lists to add them to your library
-- View all lists you've liked
-- See like counts on public lists
-- Cannot like your own public lists (validation)
-
-### 🎨 **Modern UI/UX**
-- Netflix-inspired dark theme
-- Responsive design for all screen sizes
-- Smooth animations and hover effects
-- Modal-based forms for clean interactions
-- Sticky navigation with user context
+**Inspired by the best features of Netflix, IMDb, Letterboxd, and Spotify playlists.**
 
 ---
 
-## 🛠️ Tech Stack:
+## Features
 
-### **Backend**
-- **Java 21** - Modern Java features and performance
-- **Spring Boot 4.0.1** - Application framework
-- **Spring Data JPA** - Database abstraction and ORM
-- **Spring Security** - Authentication and password encryption (BCrypt)
-- **PostgreSQL** - Relational database
-- **Maven** - Dependency management and build tool
-- **Lombok** - Boilerplate code reduction
+**Movie Discovery** — Browse trending movies, search the TMDB catalog, view detailed movie pages with cast, crew, trailers, and ratings.
 
-### **Frontend**
-- **React 18** - UI library with hooks
-- **React Router DOM** - Client-side routing
-- **Axios** - HTTP client for API calls
-- **Vite** - Fast development build tool
-- **CSS3** - Custom styling with modern features
+**Watchlist Management** — Create unlimited public or private movie lists, add/remove movies, and organize your collection.
 
-### **External APIs**
-- **TMDB API** - Movie data and images
+**Social Layer** — Browse community lists, like public lists from other users, and track your favorites.
 
-### **Development Tools**
-- **pgAdmin 4** - PostgreSQL database management
-- **Git** - Version control
-- **VS Code** - IDE
+**User Accounts** — Secure registration/login with BCrypt password hashing, profile management with password-verified email changes.
 
 ---
 
-## 🔮 Future Enhancements:
+## Tech Stack
 
-- [ ] User reviews and ratings system
-- [ ] Advanced search filters (genre, year, rating)
-- [ ] Watchlist with "watched" status tracking
-- [ ] Social features (follow users, activity feed)
-- [ ] Movie recommendations based on user lists
-- [ ] Email notifications for list likes
-- [ ] Export lists to PDF or share via link
-- [ ] Dark/Light theme toggle
-- [ ] Movie trailers autoplay on hover
-- [ ] List collaboration (multiple owners)
+### Backend
+| Technology | Purpose |
+|---|---|
+| Java 21 | Language |
+| Spring Boot 4.0 | Application framework |
+| Spring Data JPA | ORM & database abstraction |
+| Spring Security | Authentication & password encryption |
+| Spring Validation | Request DTO validation (Jakarta Bean Validation) |
+| PostgreSQL | Relational database |
+| Maven | Build & dependency management |
+
+### Frontend
+| Technology | Purpose |
+|---|---|
+| React 19 | UI library (hooks, context) |
+| React Router 7 | Client-side routing with protected routes |
+| Axios | HTTP client with interceptors |
+| Vite 7 | Dev server & build tool |
+| CSS3 | Custom styling (CSS variables, grid, flexbox) |
+
+### External
+| Service | Purpose |
+|---|---|
+| TMDB API | Movie data, images, trailers |
 
 ---
 
-(Screenshots of the app coming soon!)
+## Architecture
 
+```
+┌─────────────────┐         ┌──────────────────────────────────────┐
+│                 │  HTTP   │            Spring Boot API            │
+│   React SPA     │◄───────►│                                      │
+│   (Vite)        │  JSON   │  Controller → Service → Repository   │
+│                 │         │       ↓           ↓          ↓       │
+│  AuthContext     │         │  Validation   Business    JPA/SQL    │
+│  ProtectedRoute  │         │  (DTOs)       Logic      (Postgres)  │
+│  Axios Client   │         │                                      │
+└─────────────────┘         └──────────────┬───────────────────────┘
+                                           │
+                            ┌──────────────▼───────────────────────┐
+                            │          PostgreSQL                   │
+                            │  users │ movie_lists │ movie_list_items │ list_likes  │
+                            └──────────────────────────────────────┘
+```
 
+### Backend Structure
+```
+backend/src/main/java/com/kaanflix/backend/
+├── config/          # Security, CORS, RestTemplate bean
+├── controller/      # REST endpoints (Auth, Movie, MovieList, User)
+├── dto/
+│   ├── request/     # Validated request DTOs (LoginRequest, CreateListRequest, etc.)
+│   └── response/    # Response DTOs (MovieListResponse, ApiResponse, etc.)
+├── entity/          # JPA entities (User, MovieList, MovieListItem, ListLike)
+├── exception/       # Global exception handler + custom exceptions
+├── repository/      # Spring Data JPA repositories
+└── service/         # Business logic layer
+```
 
+### Frontend Structure
+```
+frontend/src/
+├── api/             # Axios instance with interceptors
+├── components/      # UI components (MovieCard, SearchBar, etc.)
+├── context/         # AuthContext (centralized auth state)
+├── App.jsx          # Root component with routing
+└── main.jsx         # Entry point with providers
+```
 
+---
 
+## API Endpoints
 
+### Authentication
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/auth/register` | Register new user |
+| POST | `/api/auth/login` | Login and receive user data |
 
+### Movies (TMDB Proxy)
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/movies/popular` | Get popular movies |
+| GET | `/api/movies/search?query=` | Search movies |
+| GET | `/api/movies/{id}` | Get movie details with credits & trailers |
+
+### Movie Lists
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/lists` | Create a new list |
+| GET | `/api/lists/user/{userId}` | Get user's lists |
+| GET | `/api/lists/public?currentUserId=` | Get all public lists |
+| GET | `/api/lists/liked/{userId}` | Get user's liked lists |
+| GET | `/api/lists/{listId}` | Get list details with movies |
+| DELETE | `/api/lists/{listId}?userId=` | Delete a list |
+
+### List Movies
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/lists/movies` | Add movie to list |
+| DELETE | `/api/lists/movies/{itemId}?userId=` | Remove movie from list |
+
+### Likes
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/lists/likes` | Like a public list |
+| DELETE | `/api/lists/likes?userId=&listId=` | Unlike a list |
+
+### User Profile
+| Method | Endpoint | Description |
+|---|---|---|
+| PUT | `/api/users/username` | Update username |
+| PUT | `/api/users/email` | Update email (requires password) |
+| PUT | `/api/users/password` | Update password (requires current password) |
+
+---
+
+## Getting Started
+
+### Prerequisites
+- Java 21+
+- Node.js 18+
+- PostgreSQL 15+
+- TMDB API key ([get one here](https://www.themoviedb.org/settings/api))
+
+### Database Setup
+```sql
+CREATE DATABASE kaanflix_db;
+```
+
+### Backend
+```bash
+cd backend
+
+# Copy the template and fill in your credentials
+cp src/main/resources/application.properties.example src/main/resources/application.properties
+# Edit application.properties with your TMDB API key and database password
+
+# Run with Maven
+./mvnw spring-boot:run
+```
+
+The API starts at `http://localhost:8080`.
+
+### Frontend
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Copy and configure environment variables
+cp .env.example .env
+# Edit .env if your backend runs on a different port
+
+# Start dev server
+npm run dev
+```
+
+The app opens at `http://localhost:5173`.
+
+---
+
+## Database Schema
+
+```
+users
+├── id (PK)
+├── username (UNIQUE)
+├── email (UNIQUE)
+├── password (BCrypt hash)
+└── created_at
+
+movie_lists
+├── id (PK)
+├── user_id (FK → users)
+├── name
+├── description
+├── is_public
+└── created_at
+
+movie_list_items
+├── id (PK)
+├── list_id (FK → movie_lists, CASCADE)
+├── tmdb_movie_id
+├── movie_title
+├── poster_path
+└── added_at
+
+list_likes
+├── id (PK)
+├── user_id (FK → users)
+├── list_id (FK → movie_lists, CASCADE)
+├── liked_at
+└── UNIQUE(user_id, list_id)
+```
+
+---
+
+## Design Decisions
+
+- **No JWT** — Session-less design with client-side user state. Keeps the auth flow simple while still using BCrypt for password security. JWT would be the natural next step for production.
+- **TMDB proxy** — All movie API calls go through the Spring Boot backend to keep the API key server-side and avoid CORS issues.
+- **Response DTOs** — All API responses use typed DTOs instead of raw entities, ensuring consistent JSON contracts and preventing entity leakage. Response DTOs use explicit Java (no Lombok) for full IDE compatibility, while entities and request DTOs use Lombok for boilerplate reduction.
+- **Global exception handler** — Centralized error handling with `@RestControllerAdvice` returns structured error responses with proper HTTP status codes.
+- **Custom exception hierarchy** — Typed exceptions (`ResourceNotFoundException`, `DuplicateResourceException`, `UnauthorizedException`, `BadRequestException`) map directly to HTTP status codes for clear, predictable API behavior.
+- **AuthContext** — React Context API provides centralized auth state, eliminating scattered `localStorage` calls across components.
+- **Cascade deletes** — Deleting a list automatically removes all its items and likes via JPA cascade, maintaining referential integrity.
+- **Axios interceptors** — Centralized error handling extracts user-friendly messages from API error responses, keeping component code clean.

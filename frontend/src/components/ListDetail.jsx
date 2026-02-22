@@ -1,65 +1,49 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import api from '../api/axiosConfig';
 import './Lists.css';
 
 const ListDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const user = JSON.parse(localStorage.getItem('user'));
+    const { user } = useAuth();
     const [list, setList] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchListDetails = async () => {
-            try {
-                const response = await api.get(`/api/lists/${id}`);
-                setList(response.data);
-                setLoading(false);
-            } catch (err) {
-                console.error("Error fetching list details:", err);
-                setLoading(false);
-            }
-        };
-
-        fetchListDetails();
-    }, [id]);
-
-    const fetchListDetailsRefresh = async () => {
+    const fetchList = useCallback(async () => {
         try {
             const response = await api.get(`/api/lists/${id}`);
             setList(response.data);
-        } catch (err) {
-            console.error("Error fetching list details:", err);
+        } catch {
+            setList(null);
+        } finally {
+            setLoading(false);
         }
-    };
+    }, [id]);
+
+    useEffect(() => {
+        fetchList();
+    }, [fetchList]);
 
     const handleRemoveMovie = async (itemId) => {
-        if (!window.confirm("Remove this movie from the list?")) return;
-
+        if (!window.confirm('Remove this movie from the list?')) return;
         try {
-            await api.delete(`/api/lists/remove-movie/${itemId}?userId=${user.id}`);
-            fetchListDetailsRefresh();
+            await api.delete(`/api/lists/movies/${itemId}?userId=${user.id}`);
+            fetchList();
         } catch (err) {
-            alert("Error: " + (err.response?.data || "Failed to remove movie"));
+            alert(err.userMessage || 'Failed to remove movie');
         }
     };
 
-    if (loading) {
-        return <div className="loading">Loading...</div>;
-    }
-
-    if (!list) {
-        return <div className="loading">List not found</div>;
-    }
+    if (loading) return <div className="loading">Loading...</div>;
+    if (!list) return <div className="loading">List not found</div>;
 
     const isOwner = user && list.userId === user.id;
 
     return (
         <div className="list-detail-page">
-            <button className="back-btn" onClick={() => navigate(-1)}>
-                ← Back
-            </button>
+            <button className="back-btn" onClick={() => navigate(-1)}>← Back</button>
 
             <div className="list-detail-header">
                 <div>
@@ -74,23 +58,17 @@ const ListDetail = () => {
             </div>
 
             <div className="movie-grid">
-                {list.movies && list.movies.length === 0 ? (
+                {!list.movies || list.movies.length === 0 ? (
                     <p className="no-movies">This list is empty. Add some movies!</p>
                 ) : (
-                    list.movies?.map(item => (
+                    list.movies.map(item => (
                         <div key={item.id} className="movie-item">
-                            <img
-                                src={`https://image.tmdb.org/t/p/w500${item.posterPath}`}
-                                alt={item.movieTitle}
-                                className="movie-item-poster"
-                                onClick={() => navigate(`/movie/${item.tmdbMovieId}`)}
-                            />
+                            <img src={`https://image.tmdb.org/t/p/w500${item.posterPath}`}
+                                alt={item.movieTitle} className="movie-item-poster"
+                                onClick={() => navigate(`/movie/${item.tmdbMovieId}`)} />
                             <h4>{item.movieTitle}</h4>
                             {isOwner && (
-                                <button
-                                    className="remove-movie-btn"
-                                    onClick={() => handleRemoveMovie(item.id)}
-                                >
+                                <button className="remove-movie-btn" onClick={() => handleRemoveMovie(item.id)}>
                                     Remove
                                 </button>
                             )}

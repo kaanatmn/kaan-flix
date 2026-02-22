@@ -2,8 +2,13 @@ package com.kaanflix.backend.service;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.kaanflix.backend.entity.User;
+import com.kaanflix.backend.exception.BadRequestException;
+import com.kaanflix.backend.exception.DuplicateResourceException;
+import com.kaanflix.backend.exception.ResourceNotFoundException;
+import com.kaanflix.backend.exception.UnauthorizedException;
 import com.kaanflix.backend.repository.UserRepository;
 
 @Service
@@ -17,64 +22,52 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    
-    //Update username:
+    @Transactional
     public User updateUsername(Long userId, String newUsername) {
-        // Find the user
-        User user = userRepository.findById(userId)
-            .orElseThrow(() -> new RuntimeException("User not found!"));
+        User user = findUserById(userId);
 
-        // Check if new username already exists
-        if (userRepository.existsByUsername(newUsername) && !user.getUsername().equals(newUsername)) {
-            throw new RuntimeException("Username already taken!");
+        if (!user.getUsername().equals(newUsername) && userRepository.existsByUsername(newUsername)) {
+            throw new DuplicateResourceException("Username is already taken");
         }
 
-        // Update username
         user.setUsername(newUsername);
         return userRepository.save(user);
     }
 
-    
-    //Update email (requires password verification):
+    @Transactional
     public User updateEmail(Long userId, String currentPassword, String newEmail) {
-        // Find the user
-        User user = userRepository.findById(userId)
-            .orElseThrow(() -> new RuntimeException("User not found!"));
+        User user = findUserById(userId);
+        verifyPassword(currentPassword, user.getPassword());
 
-        // Verify current password
-        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
-            throw new RuntimeException("Incorrect password!");
+        if (!user.getEmail().equals(newEmail) && userRepository.existsByEmail(newEmail)) {
+            throw new DuplicateResourceException("Email is already in use");
         }
 
-        // Check if new email already exists
-        if (userRepository.existsByEmail(newEmail) && !user.getEmail().equals(newEmail)) {
-            throw new RuntimeException("Email already in use!");
-        }
-
-        // Update email
         user.setEmail(newEmail);
         return userRepository.save(user);
     }
 
-    
-    //Update password (requires current password verification):
+    @Transactional
     public void updatePassword(Long userId, String currentPassword, String newPassword) {
-        // Find the user
-        User user = userRepository.findById(userId)
-            .orElseThrow(() -> new RuntimeException("User not found!"));
+        User user = findUserById(userId);
+        verifyPassword(currentPassword, user.getPassword());
 
-        // Verify current password
-        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
-            throw new RuntimeException("Incorrect current password!");
+        if (newPassword.length() < 6) {
+            throw new BadRequestException("New password must be at least 6 characters");
         }
 
-        // Validate new password 
-        if (newPassword == null || newPassword.length() < 6) {
-            throw new RuntimeException("New password must be at least 6 characters!");
-        }
-
-        // Hash and save new password
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+    }
+
+    private User findUserById(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+    }
+
+    private void verifyPassword(String rawPassword, String encodedPassword) {
+        if (!passwordEncoder.matches(rawPassword, encodedPassword)) {
+            throw new UnauthorizedException("Incorrect password");
+        }
     }
 }

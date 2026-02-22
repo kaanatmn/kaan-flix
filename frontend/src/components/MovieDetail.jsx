@@ -1,119 +1,88 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import api from '../api/axiosConfig';
 import './MovieDetail.css';
 
 const MovieDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const user = JSON.parse(localStorage.getItem('user'));
+    const { user } = useAuth();
     const [movie, setMovie] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showAddToList, setShowAddToList] = useState(false);
     const [userLists, setUserLists] = useState([]);
+    const [addError, setAddError] = useState('');
 
     useEffect(() => {
         const fetchMovieDetails = async () => {
             try {
                 const response = await api.get(`/api/movies/${id}`);
                 const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
-                console.log("Movie data:", data);
                 setMovie(data);
-                setLoading(false);
-            } catch (err) {
-                console.error("Error fetching movie details:", err);
-                alert("Failed to load movie details. Please try again.");
+            } catch {
+                setMovie(null);
+            } finally {
                 setLoading(false);
             }
         };
-
-        const fetchUserLists = async () => {
-            if (user) {
-                try {
-                    const response = await api.get(`/api/lists/user/${user.id}`);
-                    setUserLists(response.data);
-                } catch (err) {
-                    console.error("Error fetching user lists:", err);
-                }
-            }
-        };
-
         fetchMovieDetails();
+    }, [id]);
+
+    const fetchUserLists = useCallback(async () => {
+        if (!user) return;
+        try {
+            const response = await api.get(`/api/lists/user/${user.id}`);
+            setUserLists(response.data);
+        } catch {
+            setUserLists([]);
+        }
+    }, [user]);
+
+    useEffect(() => {
         fetchUserLists();
-    }, [id, user]);
+    }, [fetchUserLists]);
 
     const handleAddToList = async (listId) => {
-        if (!movie || !movie.id) {
-            alert("Movie data not loaded yet!");
-            return;
-        }
-
+        if (!movie) return;
+        setAddError('');
         try {
-            console.log("Adding movie to list:", {
+            await api.post('/api/lists/movies', {
                 listId,
                 tmdbMovieId: movie.id,
                 movieTitle: movie.title,
-                posterPath: movie.poster_path
-            });
-
-            await api.post('/api/lists/add-movie', {
-                listId: listId,
-                tmdbMovieId: parseInt(movie.id),
-                movieTitle: movie.title,
                 posterPath: movie.poster_path || ''
             });
-            
-            alert("Movie added to list!");
             setShowAddToList(false);
         } catch (err) {
-            console.error("Add to list error:", err);
-            const errorMsg = typeof err.response?.data === 'string' 
-                ? err.response.data 
-                : JSON.stringify(err.response?.data) || "Failed to add movie";
-            alert("Error: " + errorMsg);
+            setAddError(err.userMessage || 'Failed to add movie');
         }
     };
 
-    if (loading) {
-        return <div className="loading">Loading...</div>;
-    }
-
-    if (!movie) {
-        return <div className="loading">Movie not found</div>;
-    }
+    if (loading) return <div className="loading">Loading...</div>;
+    if (!movie) return <div className="loading">Movie not found</div>;
 
     const cast = movie.credits?.cast?.slice(0, 10) || [];
-    const director = movie.credits?.crew?.find(person => person.job === 'Director');
+    const director = movie.credits?.crew?.find(p => p.job === 'Director');
     const trailer = movie.videos?.results?.find(
-        video => video.type === 'Trailer' && video.site === 'YouTube'
+        v => v.type === 'Trailer' && v.site === 'YouTube'
     );
 
     return (
         <div className="movie-detail">
-            <div 
-                className="backdrop" 
-                style={{
-                    backgroundImage: `url(https://image.tmdb.org/t/p/original${movie.backdrop_path})`
-                }}
+            <div className="backdrop"
+                style={{ backgroundImage: `url(https://image.tmdb.org/t/p/original${movie.backdrop_path})` }}
             />
 
             <div className="detail-content">
-                <button className="back-button" onClick={() => navigate(-1)}>
-                    ← Back
-                </button>
+                <button className="back-button" onClick={() => navigate(-1)}>← Back</button>
 
                 <div className="detail-grid">
                     <div className="poster-section">
-                        <img 
-                            src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`} 
-                            alt={movie.title}
-                            className="detail-poster"
-                        />
+                        <img src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
+                            alt={movie.title} className="detail-poster" />
                         {user && (
-                            <button 
-                                className="add-to-list-btn"
-                                onClick={() => setShowAddToList(true)}
-                            >
+                            <button className="add-to-list-btn" onClick={() => setShowAddToList(true)}>
                                 + Add to List
                             </button>
                         )}
@@ -121,7 +90,7 @@ const MovieDetail = () => {
 
                     <div className="info-section">
                         <h1 className="movie-title">{movie.title}</h1>
-                        
+
                         <div className="movie-meta-info">
                             <span className="rating">⭐ {movie.vote_average?.toFixed(1)}/10</span>
                             <span className="divider">•</span>
@@ -136,9 +105,7 @@ const MovieDetail = () => {
                             ))}
                         </div>
 
-                        {movie.tagline && (
-                            <p className="tagline">"{movie.tagline}"</p>
-                        )}
+                        {movie.tagline && <p className="tagline">&ldquo;{movie.tagline}&rdquo;</p>}
 
                         <div className="section">
                             <h3>Overview</h3>
@@ -159,11 +126,8 @@ const MovieDetail = () => {
                                     {cast.map(actor => (
                                         <div key={actor.id} className="cast-member">
                                             {actor.profile_path ? (
-                                                <img 
-                                                    src={`https://image.tmdb.org/t/p/w185${actor.profile_path}`} 
-                                                    alt={actor.name}
-                                                    className="cast-photo"
-                                                />
+                                                <img src={`https://image.tmdb.org/t/p/w185${actor.profile_path}`}
+                                                    alt={actor.name} className="cast-photo" />
                                             ) : (
                                                 <div className="cast-photo-placeholder">
                                                     {actor.name.charAt(0)}
@@ -181,15 +145,11 @@ const MovieDetail = () => {
                             <div className="section">
                                 <h3>Trailer</h3>
                                 <div className="trailer-container">
-                                    <iframe
-                                        width="100%"
-                                        height="400"
+                                    <iframe width="100%" height="400"
                                         src={`https://www.youtube.com/embed/${trailer.key}`}
-                                        title="Movie Trailer"
-                                        frameBorder="0"
+                                        title="Trailer" frameBorder="0"
                                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                        allowFullScreen
-                                    ></iframe>
+                                        allowFullScreen />
                                 </div>
                             </div>
                         )}
@@ -201,24 +161,18 @@ const MovieDetail = () => {
                 <div className="modal-overlay" onClick={() => setShowAddToList(false)}>
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                         <h2>Add to List</h2>
+                        {addError && <p className="auth-error" style={{ marginBottom: '15px' }}>{addError}</p>}
                         {userLists.length === 0 ? (
                             <div>
-                                <p style={{color: '#aaa'}}>You don't have any lists yet.</p>
-                                <button 
-                                    className="modal-btn create"
-                                    onClick={() => navigate('/my-lists')}
-                                >
+                                <p style={{ color: '#aaa' }}>You don&apos;t have any lists yet.</p>
+                                <button className="modal-btn create" onClick={() => navigate('/my-lists')}>
                                     Create a List
                                 </button>
                             </div>
                         ) : (
                             <div className="lists-selection">
                                 {userLists.map(list => (
-                                    <div 
-                                        key={list.id} 
-                                        className="list-option"
-                                        onClick={() => handleAddToList(list.id)}
-                                    >
+                                    <div key={list.id} className="list-option" onClick={() => handleAddToList(list.id)}>
                                         <div>
                                             <h4>{list.name}</h4>
                                             <p>{list.movieCount} movies</p>
@@ -228,13 +182,8 @@ const MovieDetail = () => {
                                 ))}
                             </div>
                         )}
-                        <button 
-                            className="modal-btn cancel"
-                            onClick={() => setShowAddToList(false)}
-                            style={{marginTop: '15px', width: '100%'}}
-                        >
-                            Cancel
-                        </button>
+                        <button className="modal-btn cancel" style={{ marginTop: '15px', width: '100%' }}
+                            onClick={() => setShowAddToList(false)}>Cancel</button>
                     </div>
                 </div>
             )}

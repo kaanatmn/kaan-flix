@@ -1,18 +1,19 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import api from '../api/axiosConfig';
 import './Auth.css';
 
 const UserProfile = () => {
     const navigate = useNavigate();
-    const [user, setUser] = useState(JSON.parse(localStorage.getItem('user')));
-    
-    // Edit mode states
+    const { user, updateUser, logout } = useAuth();
+
     const [editingUsername, setEditingUsername] = useState(false);
     const [editingEmail, setEditingEmail] = useState(false);
     const [editingPassword, setEditingPassword] = useState(false);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
 
-    // Form data
     const [newUsername, setNewUsername] = useState('');
     const [newEmail, setNewEmail] = useState('');
     const [currentPasswordForEmail, setCurrentPasswordForEmail] = useState('');
@@ -20,315 +21,155 @@ const UserProfile = () => {
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
 
-    if (!user) {
-        return <div className="auth-container"><h2 style={{color:'white'}}>Please Log In</h2></div>;
-    }
+    const showFeedback = (type, message) => {
+        if (type === 'error') { setError(message); setSuccess(''); }
+        else { setSuccess(message); setError(''); }
+        setTimeout(() => { setError(''); setSuccess(''); }, 4000);
+    };
 
     const handleLogout = () => {
-        localStorage.removeItem('user');
-        window.dispatchEvent(new Event("storage"));
+        logout();
         navigate('/login');
     };
 
-    // Helper (for error messages)
-    const getErrorMessage = (error) => {
-        if (error.response) {
-            // Server responded with error:
-            if (typeof error.response.data === 'string') {
-                return error.response.data;
-            } else if (error.response.data.message) {
-                return error.response.data.message;
-            } else if (error.response.statusText) {
-                return error.response.statusText;
-            }
-        } else if (error.message) {
-            return error.message;
-        }
-        return "An unknown error occurred";
-    };
-
-    // Update username
     const handleUpdateUsername = async (e) => {
         e.preventDefault();
-        if (!newUsername.trim()) {
-            alert("Username cannot be empty!");
-            return;
-        }
-
+        if (!newUsername.trim()) return;
         try {
-            const response = await api.put('/api/user/update-username', {
-                userId: user.id,
-                newUsername: newUsername.trim()
+            const response = await api.put('/api/users/username', {
+                userId: user.id, newUsername: newUsername.trim()
             });
-            
-            // Update localStorage and state
-            localStorage.setItem('user', JSON.stringify(response.data));
-            setUser(response.data);
-            window.dispatchEvent(new Event("storage"));
-            
-            alert("Username updated successfully!");
+            updateUser(response.data);
+            showFeedback('success', 'Username updated');
             setEditingUsername(false);
             setNewUsername('');
         } catch (err) {
-            const errorMsg = getErrorMessage(err);
-            alert("Failed to update username: " + errorMsg);
-            console.error("Update username error:", err);
+            showFeedback('error', err.userMessage);
         }
     };
 
-    // Update email
     const handleUpdateEmail = async (e) => {
         e.preventDefault();
-        if (!newEmail.trim() || !currentPasswordForEmail.trim()) {
-            alert("Please fill all fields!");
-            return;
-        }
-
-        // Email validation
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(newEmail)) {
-            alert("Please enter a valid email address!");
-            return;
-        }
-
+        if (!newEmail.trim() || !currentPasswordForEmail.trim()) return;
         try {
-            const response = await api.put('/api/user/update-email', {
+            const response = await api.put('/api/users/email', {
                 userId: user.id,
                 currentPassword: currentPasswordForEmail,
                 newEmail: newEmail.trim()
             });
-            
-            // Update localStorage and state
-            localStorage.setItem('user', JSON.stringify(response.data));
-            setUser(response.data);
-            
-            alert("Email updated successfully!");
+            updateUser(response.data);
+            showFeedback('success', 'Email updated');
             setEditingEmail(false);
             setNewEmail('');
             setCurrentPasswordForEmail('');
         } catch (err) {
-            const errorMsg = getErrorMessage(err);
-            alert("Failed to update email: " + errorMsg);
-            console.error("Update email error:", err);
+            showFeedback('error', err.userMessage);
         }
     };
 
-    // Update password
     const handleUpdatePassword = async (e) => {
         e.preventDefault();
-        
-        if (!currentPasswordForPassword.trim() || !newPassword.trim() || !confirmPassword.trim()) {
-            alert("Please fill all fields!");
-            return;
-        }
-
         if (newPassword !== confirmPassword) {
-            alert("New passwords don't match!");
+            showFeedback('error', "Passwords don't match");
             return;
         }
-
-        if (newPassword.length < 6) {
-            alert("Password must be at least 6 characters!");
-            return;
-        }
-
         try {
-            await api.put('/api/user/update-password', {
+            await api.put('/api/users/password', {
                 userId: user.id,
                 currentPassword: currentPasswordForPassword,
-                newPassword: newPassword
+                newPassword
             });
-            
-            alert("Password updated successfully!");
+            showFeedback('success', 'Password updated');
             setEditingPassword(false);
             setCurrentPasswordForPassword('');
             setNewPassword('');
             setConfirmPassword('');
         } catch (err) {
-            const errorMsg = getErrorMessage(err);
-            alert("Failed to update password: " + errorMsg);
-            console.error("Update password error:", err);
+            showFeedback('error', err.userMessage);
         }
     };
 
     return (
         <div className="auth-container">
-            <div className="auth-form" style={{textAlign: 'center', maxWidth: '500px'}}>
-                {/* Profile Icon - Auto-updates with username */}
-                <div style={{
-                    width: '100px', 
-                    height: '100px', 
-                    backgroundColor: '#e50914', 
-                    borderRadius: '50%', 
-                    margin: '0 auto 20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '3rem',
-                    color: 'white',
-                    fontWeight: 'bold'
-                }}>
+            <div className="auth-form profile-page">
+                <div className="profile-avatar">
                     {user.username.charAt(0).toUpperCase()}
                 </div>
 
                 <h2 className="auth-title">Hi, {user.username}</h2>
-                <p style={{color: '#ccc', marginBottom: '20px'}}>Email: {user.email}</p>
+                <p className="profile-email">Email: {user.email}</p>
 
-                <hr style={{borderColor: '#333', width: '100%', margin: '20px 0'}}/>
+                {error && <p className="auth-error">{error}</p>}
+                {success && <p className="auth-error" style={{ borderColor: '#4caf50', color: '#4caf50', backgroundColor: 'rgba(76,175,80,0.1)' }}>{success}</p>}
 
-                {/* Change Username Section */}
-                <div style={{marginBottom: '20px', textAlign: 'left'}}>
+                <hr className="profile-divider" />
+
+                {/* Change Username */}
+                <div className="profile-section">
                     {!editingUsername ? (
-                        <button 
-                            className="auth-button" 
-                            style={{backgroundColor: '#333', width: '100%'}}
-                            onClick={() => setEditingUsername(true)}
-                        >
+                        <button className="auth-button profile-btn" onClick={() => setEditingUsername(true)}>
                             Change Username
                         </button>
                     ) : (
                         <form onSubmit={handleUpdateUsername}>
-                            <input 
-                                type="text" 
-                                className="auth-input"
-                                placeholder="New Username"
-                                value={newUsername}
-                                onChange={(e) => setNewUsername(e.target.value)}
-                                style={{marginBottom: '10px'}}
-                                autoFocus
-                            />
-                            <div style={{display: 'flex', gap: '10px'}}>
-                                <button type="submit" className="auth-button" style={{backgroundColor: '#e50914', flex: 1}}>
-                                    Save
-                                </button>
-                                <button 
-                                    type="button" 
-                                    className="auth-button" 
-                                    style={{backgroundColor: '#555', flex: 1}}
-                                    onClick={() => {
-                                        setEditingUsername(false); 
-                                        setNewUsername('');
-                                    }}
-                                >
-                                    Cancel
-                                </button>
+                            <input type="text" className="auth-input profile-input" placeholder="New Username"
+                                value={newUsername} onChange={(e) => setNewUsername(e.target.value)} autoFocus />
+                            <div className="profile-btn-row">
+                                <button type="submit" className="auth-button profile-btn-save">Save</button>
+                                <button type="button" className="auth-button profile-btn-cancel"
+                                    onClick={() => { setEditingUsername(false); setNewUsername(''); }}>Cancel</button>
                             </div>
                         </form>
                     )}
                 </div>
 
-                {/* Change Email Section */}
-                <div style={{marginBottom: '20px', textAlign: 'left'}}>
+                {/* Change Email */}
+                <div className="profile-section">
                     {!editingEmail ? (
-                        <button 
-                            className="auth-button" 
-                            style={{backgroundColor: '#333', width: '100%'}}
-                            onClick={() => setEditingEmail(true)}
-                        >
+                        <button className="auth-button profile-btn" onClick={() => setEditingEmail(true)}>
                             Change Email
                         </button>
                     ) : (
                         <form onSubmit={handleUpdateEmail}>
-                            <input 
-                                type="email" 
-                                className="auth-input"
-                                placeholder="New Email"
-                                value={newEmail}
-                                onChange={(e) => setNewEmail(e.target.value)}
-                                style={{marginBottom: '10px'}}
-                                autoFocus
-                            />
-                            <input 
-                                type="password" 
-                                className="auth-input"
-                                placeholder="Current Password (for security)"
-                                value={currentPasswordForEmail}
-                                onChange={(e) => setCurrentPasswordForEmail(e.target.value)}
-                                style={{marginBottom: '10px'}}
-                            />
-                            <div style={{display: 'flex', gap: '10px'}}>
-                                <button type="submit" className="auth-button" style={{backgroundColor: '#e50914', flex: 1}}>
-                                    Save
-                                </button>
-                                <button 
-                                    type="button" 
-                                    className="auth-button" 
-                                    style={{backgroundColor: '#555', flex: 1}}
-                                    onClick={() => {
-                                        setEditingEmail(false); 
-                                        setNewEmail(''); 
-                                        setCurrentPasswordForEmail('');
-                                    }}
-                                >
-                                    Cancel
-                                </button>
+                            <input type="email" className="auth-input profile-input" placeholder="New Email"
+                                value={newEmail} onChange={(e) => setNewEmail(e.target.value)} autoFocus />
+                            <input type="password" className="auth-input profile-input" placeholder="Current Password"
+                                value={currentPasswordForEmail} onChange={(e) => setCurrentPasswordForEmail(e.target.value)} />
+                            <div className="profile-btn-row">
+                                <button type="submit" className="auth-button profile-btn-save">Save</button>
+                                <button type="button" className="auth-button profile-btn-cancel"
+                                    onClick={() => { setEditingEmail(false); setNewEmail(''); setCurrentPasswordForEmail(''); }}>Cancel</button>
                             </div>
                         </form>
                     )}
                 </div>
 
-                {/* Change Password Section */}
-                <div style={{marginBottom: '20px', textAlign: 'left'}}>
+                {/* Change Password */}
+                <div className="profile-section">
                     {!editingPassword ? (
-                        <button 
-                            className="auth-button" 
-                            style={{backgroundColor: '#333', width: '100%'}}
-                            onClick={() => setEditingPassword(true)}
-                        >
+                        <button className="auth-button profile-btn" onClick={() => setEditingPassword(true)}>
                             Change Password
                         </button>
                     ) : (
                         <form onSubmit={handleUpdatePassword}>
-                            <input 
-                                type="password" 
-                                className="auth-input"
-                                placeholder="Current Password"
-                                value={currentPasswordForPassword}
-                                onChange={(e) => setCurrentPasswordForPassword(e.target.value)}
-                                style={{marginBottom: '10px'}}
-                                autoFocus
-                            />
-                            <input 
-                                type="password" 
-                                className="auth-input"
-                                placeholder="New Password (min 6 characters)"
-                                value={newPassword}
-                                onChange={(e) => setNewPassword(e.target.value)}
-                                style={{marginBottom: '10px'}}
-                            />
-                            <input 
-                                type="password" 
-                                className="auth-input"
-                                placeholder="Confirm New Password"
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                style={{marginBottom: '10px'}}
-                            />
-                            <div style={{display: 'flex', gap: '10px'}}>
-                                <button type="submit" className="auth-button" style={{backgroundColor: '#e50914', flex: 1}}>
-                                    Save
-                                </button>
-                                <button 
-                                    type="button" 
-                                    className="auth-button" 
-                                    style={{backgroundColor: '#555', flex: 1}}
-                                    onClick={() => {
-                                        setEditingPassword(false); 
-                                        setCurrentPasswordForPassword('');
-                                        setNewPassword('');
-                                        setConfirmPassword('');
-                                    }}
-                                >
-                                    Cancel
-                                </button>
+                            <input type="password" className="auth-input profile-input" placeholder="Current Password"
+                                value={currentPasswordForPassword} onChange={(e) => setCurrentPasswordForPassword(e.target.value)} autoFocus />
+                            <input type="password" className="auth-input profile-input" placeholder="New Password (min 6 characters)"
+                                value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                            <input type="password" className="auth-input profile-input" placeholder="Confirm New Password"
+                                value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+                            <div className="profile-btn-row">
+                                <button type="submit" className="auth-button profile-btn-save">Save</button>
+                                <button type="button" className="auth-button profile-btn-cancel"
+                                    onClick={() => { setEditingPassword(false); setCurrentPasswordForPassword(''); setNewPassword(''); setConfirmPassword(''); }}>Cancel</button>
                             </div>
                         </form>
                     )}
                 </div>
 
-                <hr style={{borderColor: '#333', width: '100%', margin: '20px 0'}}/>
+                <hr className="profile-divider" />
 
-                <button onClick={handleLogout} className="auth-button" style={{backgroundColor: '#e50914', width: '100%'}}>
+                <button onClick={handleLogout} className="auth-button" style={{ width: '100%' }}>
                     Log Out
                 </button>
             </div>

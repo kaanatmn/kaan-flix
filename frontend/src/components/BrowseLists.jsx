@@ -1,51 +1,39 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import api from '../api/axiosConfig';
 import './Lists.css';
 
 const BrowseLists = () => {
     const navigate = useNavigate();
-    const user = JSON.parse(localStorage.getItem('user'));
+    const { user } = useAuth();
     const [publicLists, setPublicLists] = useState([]);
+    const [refresh, setRefresh] = useState(0);
 
     useEffect(() => {
-        if (!user) {
-            navigate('/login');
-            return;
-        }
-
-        const fetchPublicLists = async () => {
+        const loadPublicLists = async () => {
             try {
                 const response = await api.get(`/api/lists/public?currentUserId=${user.id}`);
                 setPublicLists(response.data);
-            } catch (err) {
-                console.error("Error fetching public lists:", err);
+            } catch {
+                /* handled */
             }
         };
-
-        fetchPublicLists();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        loadPublicLists();
+    }, [user.id, refresh]);
 
     const handleLikeList = async (listId, isCurrentlyLiked) => {
         try {
             if (isCurrentlyLiked) {
-                await api.delete(`/api/lists/unlike?userId=${user.id}&listId=${listId}`);
+                await api.delete(`/api/lists/likes?userId=${user.id}&listId=${listId}`);
             } else {
-                await api.post('/api/lists/like', {
-                    userId: user.id,
-                    listId: listId
-                });
+                await api.post('/api/lists/likes', { userId: user.id, listId });
             }
-            // Refresh the list
-            const response = await api.get(`/api/lists/public?currentUserId=${user.id}`);
-            setPublicLists(response.data);
+            setRefresh(r => r + 1);
         } catch (err) {
-            alert("Error: " + (err.response?.data || "Failed to like/unlike list"));
+            alert(err.userMessage || 'Failed to like/unlike list');
         }
     };
-
-    if (!user) return null;
 
     return (
         <div className="lists-page">
@@ -62,10 +50,7 @@ const BrowseLists = () => {
                 ) : (
                     publicLists.map(list => (
                         <div key={list.id} className="list-card">
-                            <div 
-                                className="list-card-clickable" 
-                                onClick={() => navigate(`/list/${list.id}`)}
-                            >
+                            <div className="list-card-clickable" onClick={() => navigate(`/list/${list.id}`)}>
                                 <div className="list-card-header">
                                     <h3>{list.name}</h3>
                                     <span className="public-badge">Public</span>
@@ -76,16 +61,9 @@ const BrowseLists = () => {
                                     <span>by {list.username}</span>
                                 </div>
                             </div>
-                            
-                            {/* Like Button */}
                             {list.userId !== user.id && (
-                                <button
-                                    className={`like-btn ${list.isLiked ? 'liked' : ''}`}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleLikeList(list.id, list.isLiked);
-                                    }}
-                                >
+                                <button className={`like-btn ${list.isLiked ? 'liked' : ''}`}
+                                    onClick={(e) => { e.stopPropagation(); handleLikeList(list.id, list.isLiked); }}>
                                     {list.isLiked ? '❤️ Liked' : '🤍 Like'} ({list.likeCount || 0})
                                 </button>
                             )}

@@ -3,9 +3,12 @@ package com.kaanflix.backend.service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
 public class TmdbService {
+
+    private final RestTemplate restTemplate;
 
     @Value("${tmdb.api.base-url}")
     private String baseUrl;
@@ -13,32 +16,30 @@ public class TmdbService {
     @Value("${tmdb.api.key}")
     private String apiKey;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    public TmdbService(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
 
     public String getPopularMovies() {
-        String url = baseUrl + "movie/popular?api_key=" + apiKey;
+        String url = UriComponentsBuilder.fromUriString(baseUrl + "movie/popular")
+                .queryParam("api_key", apiKey)
+                .toUriString();
         return restTemplate.getForObject(url, String.class);
     }
 
     public String searchMovies(String query) {
-        String encodedQuery = query.replace(" ", "%20");
-        String url = baseUrl + "search/movie?api_key=" + apiKey + "&query=" + encodedQuery;
+        String url = UriComponentsBuilder.fromUriString(baseUrl + "search/movie")
+                .queryParam("api_key", apiKey)
+                .queryParam("query", query)
+                .toUriString();
         return restTemplate.getForObject(url, String.class);
     }
 
     public String getMovieDetails(Long movieId) {
-        String url = baseUrl + "movie/" + movieId + "?api_key=" + apiKey + "&append_to_response=credits,videos";
+        String url = UriComponentsBuilder.fromUriString(baseUrl + "movie/" + movieId)
+                .queryParam("api_key", apiKey)
+                .queryParam("append_to_response", "credits,videos")
+                .toUriString();
         return restTemplate.getForObject(url, String.class);
     }
 }
-
-    
-
-
-
-
-
-
-
-
-
