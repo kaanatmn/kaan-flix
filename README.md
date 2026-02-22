@@ -49,22 +49,15 @@ A full-stack movie database and social watchlist platform built with **Spring Bo
 
 ## Architecture
 
-```
-┌─────────────────┐         ┌──────────────────────────────────────┐
-│                 │  HTTP   │            Spring Boot API            │
-│   React SPA     │◄───────►│                                      │
-│   (Vite)        │  JSON   │  Controller → Service → Repository   │
-│                 │         │       ↓           ↓          ↓       │
-│  AuthContext     │         │  Validation   Business    JPA/SQL    │
-│  ProtectedRoute  │         │  (DTOs)       Logic      (Postgres)  │
-│  Axios Client   │         │                                      │
-└─────────────────┘         └──────────────┬───────────────────────┘
-                                           │
-                            ┌──────────────▼───────────────────────┐
-                            │          PostgreSQL                   │
-                            │  users │ movie_lists │ movie_list_items │ list_likes  │
-                            └──────────────────────────────────────┘
-```
+The application follows a **client-server architecture** with a clear separation between the React single-page application and the Spring Boot REST API.
+
+The **frontend** is a React SPA served by Vite in development. It manages authentication state through a centralized Context provider, enforces route protection for authenticated pages, and communicates with the backend exclusively via a configured Axios HTTP client with response interceptors for standardized error handling.
+
+The **backend** implements a layered architecture following the **Controller → Service → Repository** pattern. Controllers handle HTTP routing and request validation through Jakarta Bean Validation on typed DTOs. Services encapsulate all business logic, authorization checks, and transaction management. Repositories extend Spring Data JPA interfaces, providing database access without boilerplate. A global exception handler (`@RestControllerAdvice`) intercepts all errors and returns structured JSON responses with appropriate HTTP status codes.
+
+The **database** layer uses PostgreSQL with four normalized tables (`users`, `movie_lists`, `movie_list_items`, `list_likes`) connected through foreign key relationships. JPA cascade rules ensure referential integrity —> deleting a list automatically removes its items and likes.
+
+External movie data is fetched from the **TMDB API** through a server-side proxy, keeping the API key off the client and avoiding CORS restrictions.
 
 ### Backend Structure
 ```
